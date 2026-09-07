@@ -1,0 +1,6 @@
+{
+  "name": "QukeBasket",
+  "description": "Mobile e-commerce frontend UI for QukeBasket tech accessories shopping.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
