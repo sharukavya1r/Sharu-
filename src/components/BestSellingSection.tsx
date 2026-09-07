@@ -48,26 +48,25 @@ export const BestSellingSection: React.FC<BestSellingSectionProps> = ({
         </button>
       </div>
 
-      {/* Product Grid - 2 COLUMNS ONLY with vertical scrolling */}
+      {/* Product Grid - 2 COLUMNS ONLY */}
       {products.length > 0 ? (
         <div
-          id="best-selling-viewport"
-          className="max-h-[380px] overflow-y-auto pr-1 custom-scrollbar"
+          id="best-selling-grid"
+          className="grid grid-cols-2 gap-3 w-full max-h-[300px] overflow-y-auto pr-1"
+          style={{
+            scrollbarWidth: 'thin',
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
-          <div
-            id="best-selling-grid"
-            className="grid grid-cols-2 gap-3 w-full"
-          >
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={onAddToCart}
-                onSelectProduct={onSelectProduct}
-                isAdded={addedProductId === product.id}
-              />
-            ))}
-          </div>
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAddToCart={onAddToCart}
+              onSelectProduct={onSelectProduct}
+              isAdded={addedProductId === product.id}
+            />
+          ))}
         </div>
       ) : (
         <div className="bg-white rounded-xl p-6 text-center border border-gray-100 shadow-sm">

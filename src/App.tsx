@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Wifi, BatteryMedium, Signal } from 'lucide-react';
 import { Header } from './components/Header';
 import { SearchBox } from './components/SearchBox';
 import { HeroBanner } from './components/HeroBanner';
@@ -115,6 +114,14 @@ const INITIAL_ORDERS: Order[] = [
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('Home');
+  const mainContainerRef = useRef<HTMLElement>(null);
+  const scrollPositionsRef = useRef<Record<string, number>>({
+    Home: 0,
+    Categories: 0,
+    Search: 0,
+    Orders: 0,
+    Profile: 0,
+  });
 
   // Search State for Home
   const [searchQuery, setSearchQuery] = useState('');
@@ -354,11 +361,19 @@ export default function App() {
   };
 
   const handleTabChange = (tab: TabType) => {
+    if (mainContainerRef.current) {
+      scrollPositionsRef.current[activeTab] = mainContainerRef.current.scrollTop;
+    }
     setActiveTab(tab);
     if (tab === 'Search') {
       const input = document.getElementById('input-search-accessories');
       input?.focus();
     }
+    setTimeout(() => {
+      if (mainContainerRef.current) {
+        mainContainerRef.current.scrollTop = scrollPositionsRef.current[tab];
+      }
+    }, 0);
   };
 
   const handleOrderPlaced = (newOrder: Order) => {
@@ -393,26 +408,12 @@ export default function App() {
         id="qukebasket-mobile-container"
         className="w-full max-w-[390px] min-h-screen sm:h-[844px] bg-[#fcfcfc] shadow-2xl sm:rounded-[30px] overflow-hidden flex flex-col relative border-0 sm:border-[8px] sm:border-[#1e293b]"
       >
-        {/* Mobile Status Bar (Realistic Smartphone top bar) */}
-        <div className="h-10 px-6 pt-2 pb-1 flex items-center justify-between text-[#001f3f] text-xs font-semibold select-none bg-white border-b border-gray-100">
-          <span className="text-[13px] tracking-tight font-bold">9:41</span>
-          
-          {/* Dynamic Island pill */}
-          <div className="hidden sm:block w-20 h-4 bg-black rounded-full mx-auto" />
-
-          <div className="flex items-center gap-1.5 text-[#001f3f]">
-            <Signal className="w-3.5 h-3.5" />
-            <Wifi className="w-3.5 h-3.5" />
-            <BatteryMedium className="w-4 h-4" />
-          </div>
-        </div>
-
         {/* Top Header */}
         <Header
           cartCount={totalCartCount}
           showBack={activeTab !== 'Home'}
-          onBack={() => setActiveTab('Home')}
-          onLogoClick={() => setActiveTab('Home')}
+          onBack={() => handleTabChange('Home')}
+          onLogoClick={() => handleTabChange('Home')}
           title={
             activeTab === 'Orders'
               ? 'Your Orders'
@@ -429,12 +430,12 @@ export default function App() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto no-scrollbar pb-6">
+        <main ref={mainContainerRef} className={`flex-1 ${activeTab === 'Home' ? 'overflow-hidden' : 'overflow-y-auto'} no-scrollbar pb-6`}>
           {activeTab === 'Orders' ? (
             /* Dedicated Orders View */
             <OrdersView
               orders={orders}
-              onBackToShopping={() => setActiveTab('Home')}
+              onBackToShopping={() => handleTabChange('Home')}
               showToast={showToast}
               onUpdateOrder={(updated) => {
                 setOrders((prev) =>
@@ -445,7 +446,7 @@ export default function App() {
           ) : activeTab === 'Categories' ? (
             /* Dedicated Categories View */
             <CategoriesView
-              onBackToHome={() => setActiveTab('Home')}
+              onBackToHome={() => handleTabChange('Home')}
               onAddToCart={handleAddToCart}
               onSelectProduct={setSelectedProduct}
               recentlyAddedId={recentlyAddedId}
@@ -454,7 +455,7 @@ export default function App() {
           ) : activeTab === 'Search' ? (
             /* Dedicated Search View */
             <SearchView
-              onBackToHome={() => setActiveTab('Home')}
+              onBackToHome={() => handleTabChange('Home')}
               onAddToCart={handleAddToCart}
               onSelectProduct={setSelectedProduct}
               recentlyAddedId={recentlyAddedId}
@@ -463,9 +464,9 @@ export default function App() {
           ) : activeTab === 'Profile' ? (
             /* Profile / My Account View with exact 5 functional options */
             <ProfileView
-              onBackToShopping={() => setActiveTab('Home')}
+              onBackToShopping={() => handleTabChange('Home')}
               showToast={showToast}
-              onNavigateToTab={setActiveTab}
+              onNavigateToTab={handleTabChange}
               addresses={savedAddresses}
               onUpdateAddresses={handleUpdateAddresses}
               isCodSelected={isCodSelected}
