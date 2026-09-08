@@ -32,6 +32,7 @@ interface ProfileViewProps {
   onUpdateAddresses?: (addresses: SavedAddress[]) => void;
   isCodSelected?: boolean;
   onToggleCod?: (selected: boolean) => void;
+  onLogout?: () => void;
 }
 
 type SubScreen = 'main' | 'addresses' | 'cod' | 'delivery' | 'support' | 'profile';
@@ -63,6 +64,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onUpdateAddresses,
   isCodSelected: propIsCodSelected,
   onToggleCod: propOnToggleCod,
+  onLogout,
 }) => {
   const [currentScreen, setCurrentScreen] = useState<SubScreen>('main');
 
@@ -157,6 +159,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       console.error(e);
     }
     showToast('Logged out successfully');
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   const [profileForm, setProfileForm] = useState<UserProfile>(profile);

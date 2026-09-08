@@ -15,23 +15,11 @@ import { OrdersView } from './components/OrdersView';
 import { CheckoutModal } from './components/CheckoutModal';
 import { ProductDetailsModal } from './components/ProductDetailsModal';
 import { Toast } from './components/Toast';
+import { LoginScreen } from './components/LoginScreen';
 import { BEST_SELLING_PRODUCTS, CATEGORIES } from './data';
 import { TabType, ProductItem, CartItem, SavedAddress, Order } from './types';
 
-const INITIAL_ADDRESSES: SavedAddress[] = [
-  {
-    id: 'addr-1',
-    fullName: 'Rahul Sharma',
-    mobile: '9876543210',
-    building: 'Flat 402, Sunshine Heights',
-    street: '100ft Road, Indiranagar',
-    landmark: 'Near Indiranagar Metro Station',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    pincode: '560038',
-    isDefault: true,
-  },
-];
+const INITIAL_ADDRESSES: SavedAddress[] = [];
 
 const INITIAL_ORDERS: Order[] = [
   {
@@ -112,6 +100,14 @@ const INITIAL_ORDERS: Order[] = [
 ];
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('quke_is_logged_in') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('Home');
   const mainContainerRef = useRef<HTMLElement>(null);
@@ -403,11 +399,26 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#e5e7eb] flex items-center justify-center p-0 sm:p-4 md:p-6 select-none font-sans">
-      {/* 390px Max Width Mobile Frame */}
-      <div
-        id="qukebasket-mobile-container"
-        className="w-full max-w-[390px] min-h-screen sm:h-[844px] bg-[#fcfcfc] shadow-2xl sm:rounded-[30px] overflow-hidden flex flex-col relative border-0 sm:border-[8px] sm:border-[#1e293b]"
-      >
+      {!isLoggedIn ? (
+        <LoginScreen
+          onLoginSuccess={(profile) => {
+            setIsLoggedIn(true);
+            try {
+              localStorage.setItem('quke_is_logged_in', 'true');
+              localStorage.setItem('quke_user_profile', JSON.stringify(profile));
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+          showToast={showToast}
+        />
+      ) : (
+        <>
+          {/* 390px Max Width Mobile Frame */}
+          <div
+            id="qukebasket-mobile-container"
+            className="w-full max-w-[390px] min-h-screen sm:h-[844px] bg-[#fcfcfc] shadow-2xl sm:rounded-[30px] overflow-hidden flex flex-col relative border-0 sm:border-[8px] sm:border-[#1e293b]"
+          >
         {/* Top Header */}
         <Header
           cartCount={totalCartCount}
@@ -478,6 +489,7 @@ export default function App() {
                   console.error(e);
                 }
               }}
+              onLogout={() => setIsLoggedIn(false)}
             />
           ) : (
             /* Home / Catalog View */
@@ -595,6 +607,8 @@ export default function App() {
           onClose={() => setToastMessage(null)}
         />
       </div>
+    </>
+      )}
     </div>
   );
 }
