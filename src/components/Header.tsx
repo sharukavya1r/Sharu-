@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Menu, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HeaderProps {
@@ -10,6 +10,7 @@ interface HeaderProps {
   onBack?: () => void;
   title?: string;
   onLogoClick?: () => void;
+  showCart?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onBack,
   title,
   onLogoClick,
+  showCart = true,
 }) => {
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white border-b border-gray-100 shrink-0">
@@ -62,31 +64,36 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right: Cart Icon with Badge */}
-      <button
-        id="btn-header-cart"
-        onClick={onOpenCart}
-        aria-label={`Shopping cart with ${cartCount} items`}
-        className="relative w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-[#001f3f] hover:bg-gray-100 active:scale-95 transition-transform cursor-pointer"
-      >
-        <ShoppingBag className="w-6 h-6 stroke-[2] text-[#001f3f]" />
-        
-        {/* Orange notification badge */}
-        <AnimatePresence>
-          {cartCount > 0 && (
-            <motion.span
-              key={cartCount}
-              initial={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-              className="absolute -top-1 -right-1 bg-[#FF8C00] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm pointer-events-none leading-none"
-            >
-              {cartCount}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </button>
+      {/* Right: Cart Icon with Badge or Spacer */}
+      {showCart ? (
+        <motion.button
+          id="btn-header-cart"
+          onClick={onOpenCart}
+          whileTap={{ scale: 0.92 }}
+          aria-label={`Shopping cart with ${cartCount} items`}
+          className="relative w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-[#001f3f] hover:bg-gray-100 transition-colors cursor-pointer"
+        >
+          <ShoppingCart className="w-5.5 h-5.5 stroke-[1.75] text-[#001f3f]" />
+          
+          {/* Orange notification badge */}
+          <AnimatePresence>
+            {cartCount > 0 && (
+              <motion.span
+                key={cartCount}
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                className="absolute top-0.5 right-0.5 bg-[#FF8C00] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border border-white shadow-xs pointer-events-none leading-none"
+              >
+                {cartCount}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      ) : (
+        <div className="w-9 h-9" />
+      )}
     </header>
   );
 };

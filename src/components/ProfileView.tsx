@@ -20,9 +20,11 @@ import {
   ChevronDown,
   ChevronUp,
   PackageCheck,
+  LogOut,
 } from 'lucide-react';
 import { SavedAddress, UserProfile } from '../types';
 import { getStandardDeliveryFee, calculateDeliveryFee } from '../utils/delivery';
+import { lookupPinCode } from '../utils/pincode';
 
 interface ProfileViewProps {
   onBackToShopping: () => void;
@@ -289,33 +291,43 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     distance?: string;
   }>({ type: null, message: '' });
 
-  const handleCheckPinCode = (e: React.FormEvent) => {
+  const handleCheckPinCode = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPin = pinCodeInput.trim();
-    if (/^[1-9][0-9]{5}$/.test(cleanPin)) {
+    if (!/^[1-9][0-9]{5}$/.test(cleanPin)) {
+      setPinStatus({
+        type: 'error',
+        message: 'Please enter a valid 6-digit Indian PIN code.',
+      });
+      return;
+    }
+
+    const lookup = await lookupPinCode(cleanPin);
+    if (lookup.success) {
       const calc = getStandardDeliveryFee({
         id: 'temp',
         fullName: '',
         mobile: '',
         building: '',
         street: '',
-        city: '',
-        state: '',
+        city: lookup.district,
+        state: lookup.state,
         pincode: cleanPin,
         isDefault: false,
       });
+      const areaList = lookup.postOffices.slice(0, 3).map(p => p.name).join(', ');
       setPinStatus({
         type: 'success',
-        message: `Delivery available for PIN code ${cleanPin}!`,
+        message: `Available for ${areaList || lookup.district}, ${lookup.district}, ${lookup.state}!`,
         fee: calc.fee,
         zone: calc.zone,
         distance: calc.distanceDescription,
       });
-      showToast(`PIN ${cleanPin}: ₹${calc.fee} delivery (FREE on ₹299+)`);
+      showToast(`PIN ${cleanPin} (${lookup.district}, ${lookup.state}): Delivery Available`);
     } else {
       setPinStatus({
         type: 'error',
-        message: 'Please enter a valid 6-digit Indian PIN code (e.g. 560001).',
+        message: lookup.message || 'Invalid PIN code. No delivery available.',
       });
     }
   };
@@ -446,6 +458,27 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setFormErrors({});
   };
 
+  const [availablePostOffices, setAvailablePostOffices] = useState<string[]>([]);
+
+  const handleAddressPincodeChange = async (val: string) => {
+    const clean = val.replace(/\D/g, '').slice(0, 6);
+    setFormData((prev) => ({ ...prev, pincode: clean }));
+    setAvailablePostOffices([]);
+    if (clean.length === 6) {
+      const res = await lookupPinCode(clean);
+      if (res.success) {
+        const poNames = res.postOffices.map((po) => po.name);
+        setAvailablePostOffices(poNames);
+        setFormData((prev) => ({
+          ...prev,
+          city: res.district,
+          state: res.state,
+          street: poNames.length > 0 ? poNames[0] : prev.street,
+        }));
+        showToast(`PIN ${clean}: ${res.district}, ${res.state} verified`);
+      }
+    }
+  };
   const handleDeleteAddress = (id: string) => {
     const remaining = addresses.filter((a) => a.id !== id);
     if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
@@ -631,7 +664,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 type="text"
                 maxLength={6}
                 value={formData.pincode}
-                onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
+                onChange={(e) => handleAddressPincodeChange(e.target.value)}
                 placeholder="560038"
                 className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#001f3f]"
               />
@@ -639,6 +672,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <p className="text-[10px] text-red-500 mt-0.5">{formErrors.pincode}</p>
               )}
             </div>
+
+            {availablePostOffices.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Select Post Office / Area *
+                </label>
+                <select
+                  value={formData.street}
+                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#001f3f]"
+                >
+                  {availablePostOffices.map((po) => (
+                    <option key={po} value={po}>
+                      {po}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="pt-1">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1513,27 +1565,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <div>
               <h3 className="text-sm font-bold text-[#001f3f]">{profile.name}</h3>
               <p className="text-xs text-gray-400">
-                {profile.phone} • {profile.city}
+                {profile.phone ? `••••••${profile.phone.slice(-4)}` : ''} {profile.city ? `• ${profile.city}` : ''}
               </p>
-              <p className="text-[11px] text-gray-400">{profile.email}</p>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleOpenProfileEdit}
-              className="text-[11px] font-bold text-[#FF8C00] hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              <span>Edit</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer ml-2"
-            >
-              Logout
-            </button>
           </div>
         </div>
       )}
@@ -1666,15 +1700,26 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
 
-      {/* Back to Shopping */}
-      <div className="text-center pt-2">
-        <button
-          type="button"
-          onClick={onBackToShopping}
-          className="text-xs font-bold text-[#FF8C00] hover:underline cursor-pointer"
-        >
-          ← Continue Shopping
-        </button>
+      {/* Separate Logout Option */}
+      <div
+        id="profile-opt-logout"
+        onClick={handleLogout}
+        className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm flex items-center justify-between cursor-pointer hover:bg-red-50/50 transition-colors group mt-3"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+            <LogOut className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-red-600">
+              Logout
+            </span>
+            <p className="text-[11px] text-gray-400 font-normal mt-0.5">
+              Sign out of your QukeBasket account
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-red-600 transition-colors" />
       </div>
     </div>
   );

@@ -232,10 +232,10 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                     <MapPin className="w-3.5 h-3.5 text-[#FF8C00] shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-[#001f3f]">
-                        {order.deliveryAddress.fullName}
+                        {order.deliveryAddress?.fullName || 'Delivery Address'}
                       </span>
                       <p className="text-gray-500">
-                        {order.deliveryAddress.city}, {order.deliveryAddress.pincode}
+                        {order.deliveryAddress?.city || ''} {order.deliveryAddress?.pincode ? `- ${order.deliveryAddress.pincode}` : ''}
                       </p>
                     </div>
                   </div>
@@ -611,15 +611,6 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         />
       )}
 
-      <div className="text-center pt-2">
-        <button
-          type="button"
-          onClick={onBackToShopping}
-          className="text-xs font-bold text-[#FF8C00] hover:underline cursor-pointer"
-        >
-          ← Back to Homepage
-        </button>
-      </div>
     </div>
   );
 };

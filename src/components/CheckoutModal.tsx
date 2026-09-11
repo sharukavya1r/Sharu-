@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CartItem, SavedAddress, Order } from '../types';
 import { calculateDeliveryFee } from '../utils/delivery';
+import { lookupPinCode } from '../utils/pincode';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -88,6 +89,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const deliveryInfo = calculateDeliveryFee(selectedAddress, itemsTotal);
   const deliveryFee = deliveryInfo.fee;
   const orderTotal = itemsTotal + deliveryFee;
+
+  const [checkoutPostOffices, setCheckoutPostOffices] = useState<string[]>([]);
+
+  const handleCheckoutPincodeChange = async (val: string) => {
+    const clean = val.replace(/\D/g, '').slice(0, 6);
+    setNewAddressForm((prev) => ({ ...prev, pincode: clean }));
+    setCheckoutPostOffices([]);
+    if (clean.length === 6) {
+      const res = await lookupPinCode(clean);
+      if (res.success) {
+        const poNames = res.postOffices.map((po) => po.name);
+        setCheckoutPostOffices(poNames);
+        setNewAddressForm((prev) => ({
+          ...prev,
+          city: res.district,
+          state: res.state,
+          street: poNames.length > 0 ? poNames[0] : prev.street,
+        }));
+      }
+    }
+  };
 
   const handleValidateNewAddress = () => {
     const errors: Record<string, string> = {};
@@ -292,13 +314,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <MapPin className="w-4 h-4 text-[#FF8C00] shrink-0 mt-0.5" />
                       <div>
                         <span className="font-bold text-[#001f3f] block">
-                          Delivering To: {placedOrder.deliveryAddress.fullName}
+                          Delivering To: {placedOrder.deliveryAddress?.fullName || 'Customer'}
                         </span>
                         <span className="text-gray-500 text-[11px]">
-                          {placedOrder.deliveryAddress.building},{' '}
-                          {placedOrder.deliveryAddress.street},{' '}
-                          {placedOrder.deliveryAddress.city} -{' '}
-                          {placedOrder.deliveryAddress.pincode}
+                          {placedOrder.deliveryAddress?.building || ''},{' '}
+                          {placedOrder.deliveryAddress?.street || ''},{' '}
+                          {placedOrder.deliveryAddress?.city || ''} -{' '}
+                          {placedOrder.deliveryAddress?.pincode || ''}
                         </span>
                       </div>
                     </div>
@@ -330,20 +352,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 space-y-2">
+                  <div className="pt-2">
                     <button
                       type="button"
                       onClick={handleCloseAndReset}
                       className="w-full py-3 bg-[#FF8C00] hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-md transition-colors uppercase tracking-wider cursor-pointer"
                     >
                       View in Orders Tab
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCloseAndReset}
-                      className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-[#001f3f] font-bold text-xs rounded-xl transition-colors cursor-pointer"
-                    >
-                      Continue Shopping
                     </button>
                   </div>
                 </div>
@@ -499,16 +514,30 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         maxLength={6}
                         placeholder="6-digits"
                         value={newAddressForm.pincode}
-                        onChange={(e) =>
-                          setNewAddressForm({
-                            ...newAddressForm,
-                            pincode: e.target.value.replace(/\D/g, ''),
-                          })
-                        }
+                        onChange={(e) => handleCheckoutPincodeChange(e.target.value)}
                         className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#001f3f]"
                       />
                     </div>
                   </div>
+
+                  {checkoutPostOffices.length > 0 && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#001f3f] mb-1">
+                        Select Post Office / Area *
+                      </label>
+                      <select
+                        value={newAddressForm.street}
+                        onChange={(e) => setNewAddressForm({ ...newAddressForm, street: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#001f3f]"
+                      >
+                        {checkoutPostOffices.map((po) => (
+                          <option key={po} value={po}>
+                            {po}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {newAddressForm.pincode.length === 6 && (
                     <div className="p-2.5 bg-orange-50/70 border border-orange-200/80 rounded-lg flex items-center justify-between text-[11px]">

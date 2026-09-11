@@ -423,6 +423,7 @@ export default function App() {
         <Header
           cartCount={totalCartCount}
           showBack={activeTab !== 'Home'}
+          showCart={activeTab === 'Home'}
           onBack={() => handleTabChange('Home')}
           onLogoClick={() => handleTabChange('Home')}
           title={

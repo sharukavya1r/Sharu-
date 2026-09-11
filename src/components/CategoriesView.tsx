@@ -247,15 +247,6 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
         </div>
       )}
 
-      <div className="text-center pt-2">
-        <button
-          type="button"
-          onClick={onBackToHome}
-          className="text-xs font-bold text-[#FF8C00] hover:underline cursor-pointer"
-        >
-          ← Back to Homepage
-        </button>
-      </div>
     </div>
   );
 };

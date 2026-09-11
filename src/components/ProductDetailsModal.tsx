@@ -12,9 +12,12 @@ import {
   ShieldCheck,
   CheckCircle2,
   Check,
+  Pencil,
+  Share2,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ProductItem, SavedAddress } from '../types';
+import { ProductItem, SavedAddress, ProductReview } from '../types';
 import { getStandardDeliveryFee, calculateDeliveryFee } from '../utils/delivery';
 
 interface ProductDetailsModalProps {
@@ -99,9 +102,102 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 }) => {
   const [product, setProduct] = useState<ProductItem | null>(initialProduct);
 
+  const [reviews, setReviews] = useState<ProductReview[]>(() => {
+    if (!initialProduct) return [];
+    try {
+      const stored = localStorage.getItem(`quke_reviews_${initialProduct.id}`);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {}
+    return initialProduct.reviews || [];
+  });
+
+  const [isWritingReview, setIsWritingReview] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [newComment, setNewComment] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [reviewSuccess, setReviewSuccess] = useState('');
+
+  const currentUserName = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('quke_user_profile');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.name) return parsed.name;
+      }
+    } catch {}
+    return 'Valued Customer';
+  }, []);
+
   useEffect(() => {
     setProduct(initialProduct);
+    if (initialProduct) {
+      try {
+        const stored = localStorage.getItem(`quke_reviews_${initialProduct.id}`);
+        if (stored) {
+          setReviews(JSON.parse(stored));
+        } else {
+          setReviews(initialProduct.reviews || []);
+        }
+      } catch {
+        setReviews(initialProduct.reviews || []);
+      }
+      setIsWritingReview(false);
+      setNewComment('');
+      setNewRating(5);
+      setReviewError('');
+      setReviewSuccess('');
+    }
   }, [initialProduct]);
+
+  const reviewCount = reviews.length;
+  const avgRating = reviewCount > 0
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount).toFixed(1)
+    : (initialProduct?.rating ? initialProduct.rating.toFixed(1) : '0.0');
+
+  const formatReviewerName = (name?: string) => {
+    if (!name) return 'Customer';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[1].charAt(0)}.`;
+  };
+
+  const handleReviewSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) {
+      setReviewError('Please enter your review comment.');
+      return;
+    }
+    setReviewError('');
+
+    const newRev: ProductReview = {
+      id: 'rev_' + Date.now(),
+      userName: currentUserName,
+      rating: newRating,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      comment: newComment.trim(),
+    };
+
+    const updatedReviews = [newRev, ...reviews];
+    setReviews(updatedReviews);
+
+    if (product) {
+      try {
+        localStorage.setItem(`quke_reviews_${product.id}`, JSON.stringify(updatedReviews));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    setNewComment('');
+    setIsWritingReview(false);
+    setReviewSuccess('Review submitted successfully!');
+    setTimeout(() => {
+      setReviewSuccess('');
+    }, 4000);
+  };
 
   // Active address management with fallback to savedAddresses or localStorage
   const [activeAddress, setActiveAddress] = useState<SavedAddress | null>(() => {
@@ -137,6 +233,76 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   const [activeDetailsTab, setActiveDetailsTab] = useState<DetailTab>('Specifications');
 
   const contentScrollRef = useRef<HTMLDivElement>(null);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showModalToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleShareProduct = async () => {
+    if (!product) return;
+    const shareData = {
+      title: product.name,
+      text: `Check out ${product.name} on QukeBasket for ₹${product.price}!`,
+      url: window.location.href,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        showModalToast('Product shared successfully!');
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showModalToast('Product link copied to clipboard!');
+    } catch {
+      showModalToast('Unable to share or copy link.');
+    }
+  };
+
+  const handleDownloadProductImage = async () => {
+    if (!product) return;
+    const imageUrl = images[activeImgIndex] || product.image;
+    const safeName = product.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `${safeName}_${activeImgIndex + 1}.jpg`;
+
+    try {
+      showModalToast('Downloading product image...');
+      const response = await fetch(imageUrl, { mode: 'cors', referrerPolicy: 'no-referrer' });
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      showModalToast('Image downloaded successfully!');
+    } catch (err) {
+      try {
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.target = '_blank';
+        link.download = fileName;
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showModalToast('Image download opened in new tab.');
+      } catch {
+        showModalToast('Failed to download image. Please try again.');
+      }
+    }
+  };
 
   // Images for current product
   const images = product?.images && product.images.length > 0
@@ -377,16 +543,57 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               Product Details
             </h3>
           </div>
-          <button
-            type="button"
-            id="product-details-close-btn"
-            onClick={onClose}
-            aria-label="Close product details"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-200 hover:text-white bg-white/10 hover:bg-white/20 cursor-pointer transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleShareProduct}
+              aria-label="Share product"
+              title="Share product"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-200 hover:text-white bg-white/10 hover:bg-white/20 cursor-pointer transition-colors"
+            >
+              <Share2 className="w-4 h-4 text-[#FF8C00]" />
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadProductImage}
+              aria-label="Download product image"
+              title="Download image"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-200 hover:text-white bg-white/10 hover:bg-white/20 cursor-pointer transition-colors"
+            >
+              <Download className="w-4 h-4 text-[#FF8C00]" />
+            </button>
+            <button
+              type="button"
+              id="product-details-close-btn"
+              onClick={onClose}
+              aria-label="Close product details"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-200 hover:text-white bg-white/10 hover:bg-white/20 cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
+        {/* TOAST NOTIFICATION BANNER */}
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-16 left-4 right-4 z-50 bg-[#0B1528] text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center justify-between text-xs font-semibold border border-white/10"
+            >
+              <span>{toastMessage}</span>
+              <button
+                type="button"
+                onClick={() => setToastMessage(null)}
+                className="text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* SCROLLABLE CONTENT BODY */}
         <div
@@ -754,27 +961,113 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
             className="bg-white border border-gray-100 rounded-2xl p-3.5 space-y-3"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#0B1528]">Ratings &amp; Reviews</h3>
-              {product.rating ? (
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0B1528]">
-                  <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                  <span>{product.rating}</span>
-                  <span className="text-gray-400 font-medium">/ 5</span>
-                  {product.reviewCount ? (
-                    <span className="text-[11px] text-gray-400 font-normal ml-0.5">
-                      ({product.reviewCount} reviews)
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-[#0B1528]">Ratings &amp; Reviews</h3>
+                <button
+                  type="button"
+                  id="btn-toggle-write-review"
+                  onClick={() => setIsWritingReview(!isWritingReview)}
+                  className="text-[11px] font-bold text-[#FF8C00] hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>{isWritingReview ? 'Cancel' : 'Write a Review'}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0B1528]">
+                <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                <span>{avgRating}</span>
+                <span className="text-gray-400 font-medium">/ 5</span>
+                <span className="text-[11px] text-gray-400 font-normal ml-0.5">
+                  ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})
+                </span>
+              </div>
             </div>
 
-            {product.reviews && product.reviews.length > 0 ? (
+            {reviewSuccess && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{reviewSuccess}</span>
+              </div>
+            )}
+
+            {/* Write Review Form */}
+            {isWritingReview && (
+              <form onSubmit={handleReviewSubmit} className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3">
+                <h4 className="text-xs font-bold text-[#0B1528]">Rate &amp; Review this product</h4>
+                
+                {/* Star Picker */}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-500 font-medium block">Select Rating</label>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setNewRating(star)}
+                        onMouseEnter={() => setHoverRating(star)}
+                        onMouseLeave={() => setHoverRating(0)}
+                        className="p-1 focus:outline-none cursor-pointer"
+                      >
+                        <Star
+                          className={`w-5 h-5 transition-colors ${
+                            star <= (hoverRating || newRating)
+                              ? 'fill-amber-400 text-amber-500'
+                              : 'text-gray-300'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    <span className="text-xs font-bold text-[#0B1528] ml-2">{newRating} / 5 Stars</span>
+                  </div>
+                </div>
+
+                {/* Comment Textarea */}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-500 font-medium block">Your Review</label>
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => {
+                      setNewComment(e.target.value);
+                      if (reviewError) setReviewError('');
+                    }}
+                    placeholder="What did you like or dislike? How was the quality?"
+                    rows={3}
+                    className="w-full p-2.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B1528] resize-none"
+                  />
+                  {reviewError && (
+                    <p className="text-[10px] text-red-500 font-medium">{reviewError}</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsWritingReview(false);
+                      setReviewError('');
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    id="btn-submit-review"
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#0B1528] hover:bg-[#FF8C00] rounded-lg transition-colors cursor-pointer shadow-sm"
+                  >
+                    Submit Review
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {reviews.length > 0 ? (
               <div className="divide-y divide-gray-100 pt-0.5">
-                {product.reviews.map((rev) => (
+                {reviews.map((rev) => (
                   <div key={rev.id} className="py-2.5 first:pt-0 last:pb-0 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#0B1528]">{rev.userName}</span>
+                      <span className="text-xs font-bold text-[#0B1528]">{formatReviewerName(rev.userName)}</span>
                       {rev.date && <span className="text-[10px] text-gray-400">{rev.date}</span>}
                     </div>
                     {rev.rating ? (
@@ -799,7 +1092,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               </div>
             ) : (
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
-                <p className="text-xs font-bold text-gray-500">No reviews yet</p>
+                <p className="text-xs font-bold text-gray-500">No reviews yet. Be the first to review!</p>
               </div>
             )}
           </div>
